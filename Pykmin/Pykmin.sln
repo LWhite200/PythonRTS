@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34902.65
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Pykmin", "Pykmin.pyproj", "{B8808ABE-ABA1-436C-A269-CD8AED3CCCE1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B8808ABE-ABA1-436C-A269-CD8AED3CCCE1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B8808ABE-ABA1-436C-A269-CD8AED3CCCE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {62FD5542-C25D-42B6-B069-25D0A8BBDE2B}
+	EndGlobalSection
+EndGlobal
