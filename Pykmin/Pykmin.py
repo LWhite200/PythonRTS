@@ -18,32 +18,15 @@ BLUE = (0, 0, 255)
 BLACK = (0, 0, 0)
 YELLOW = (255, 255, 0)
 PINK = (255, 192, 203)
-PURPLE = (128, 0, 128)
-ORANGE = (255, 165, 0)
-BROWN = (165, 42, 42)
-
-AQUA = (0, 255, 255)
-FUCHSIA = (255, 0, 255)
-GRAY = (128, 128, 128)
-LIME = (0, 255, 150)
-MAROON = (128, 0, 0)
-NAVY = (0, 0, 128)
-OLIVE = (128, 128, 0)
-SILVER = (192, 192, 192)
-TEAL = (0, 128, 128)
-CORAL = (255, 127, 80)
-VIOLET = (238, 130, 238)
-INDIGO = (75, 0, 130)
-BEIGE = (245, 245, 220)
 TURQUOISE = (64, 224, 208)
-
+LIME = (0, 255, 150)
 
 # Constants
 THROW_LIMIT = 200  # Maximum throw distance
 PIKMIN_RADIUS = 10
 MIN_OVERLAP_DISTANCE = 1  # Minimum distance to avoid complete overlap
 DIS_FROM_CAPTN = 37
-THROW_SHRINK = 0
+PIK_MOVE_OBJ_SPEED = 4
 
 # Game objects
 class Captain:
@@ -76,9 +59,9 @@ class Pikmin:
         self.x = x
         self.y = y
         self.radius = PIKMIN_RADIUS
-        self.color = RED
+        self.color = PINK
         self.speed = 5
-        self.following = True
+        self.following = False
         self.heldObj = None
         self.target = None
         self.throwing = False
@@ -115,73 +98,153 @@ class Pikmin:
                 self.throwing = False
 
     def hold(self, obj):
+        if not self.following and not self.heldObj and obj.can_be_carried_by(self):
+            self.heldObj = obj
+            obj.add_pikmin(self)
+            self.following = False
+            self.target = None  # Stop moving to target if holding an object
+
+    def drop(self):
         if self.heldObj:
-            dx = onion.x - self.x
-            dy = onion.y - self.y
-            dist = math.sqrt(dx**2 + dy**2)
-            if dist > 5:
-                self.x += int(dx / dist * self.speed)
-                self.y += int(dy / dist * self.speed)
-                obj.x, obj.y = self.x, self.y
-            else:
-                self.heldObj = None
-                obj.delivered = all(pikmin.heldObj != obj for pikmin in pikmin_list)  # Check if all Pikmin dropped the object
+            self.heldObj.remove_pikmin(self)
+            self.heldObj = None
+            self.throwing = False
+            self.following = True
 
     def draw(self):
+        # Set the color based on the Pikmin's state
+        if self.heldObj:
+            self.color = RED
+            outline = False
+        elif self.following:
+            self.color = RED
+            outline = True
+        else:
+            self.color = PINK
+            outline = True
+        
+        # Draw the outline if needed
+        if outline:
+            pygame.draw.circle(screen, BLACK, (self.x, self.y), self.radius + 2)
         pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
+
 
 class Onion:
     def __init__(self):
-        self.x = random.randint(50, WIDTH - 50)
-        self.y = random.randint(50, HEIGHT - 50)
+        # self.x = random.randint(50, WIDTH - 50)
+        # self.y = random.randint(50, HEIGHT - 50)
+        self.x = WIDTH // 2
+        self.y = HEIGHT // 2
         self.radius = 30
         self.color = GREEN
         self.outline_thickness = 3  # Thickness of the outline
 
     def draw(self):
-        # Draw the black outline
-        pygame.draw.circle(screen, BLACK, (self.x, self.y), self.radius + self.outline_thickness)
-        # Draw the Onion itself
-        pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
+        # Create a surface with per-pixel alpha for transparency
+        onion_surface = pygame.Surface((self.radius * 2 + self.outline_thickness * 2, self.radius * 2 + self.outline_thickness * 2), pygame.SRCALPHA)
+        # Draw the transparent onion on the surface
+        pygame.draw.circle(onion_surface, self.color + (100,), (self.radius + self.outline_thickness, self.radius + self.outline_thickness), self.radius)  # Adjust alpha value as needed
+        
+        # Draw the onion outline directly on the screen surface
+        pygame.draw.circle(screen, BLACK, (self.x, self.y), self.radius + self.outline_thickness, self.outline_thickness)
 
+        # Draw the transparent onion surface on the main screen surface
+        screen.blit(onion_surface, (self.x - self.radius - self.outline_thickness, self.y - self.radius - self.outline_thickness))
+
+class PikminSpawner:
+    def __init__(self, onion, pikmin_list):
+        self.onion = onion
+        self.pikmin_list = pikmin_list
+
+    def spawn_pikmin(self, count):
+        for _ in range(count):
+            # Spawn Pikmin close to the Onion
+            angle = random.uniform(0, 2 * math.pi)
+            radius = random.uniform(0, 30)  # Adjust radius as needed
+            spawn_x = int(self.onion.x + radius * math.cos(angle))
+            spawn_y = int(self.onion.y + radius * math.sin(angle))
+            self.pikmin_list.append(Pikmin(spawn_x, spawn_y))
 
 class Object:
-    def __init__(self):
+    def __init__(self, onion, pikmin_spawner):
         self.x = random.randint(50, WIDTH - 50)
         self.y = random.randint(50, HEIGHT - 50)
         self.radius = 15
-        self.color = BLACK
+        self.color = TURQUOISE
         self.pikmin_needed = random.randint(1, 3)
         self.delivered = False
         self.pikmin_carrying = 0
+        self.onion = onion
+        self.pikmin_spawner = pikmin_spawner  # Reference to PikminSpawner
+        self.carrying_pikmin = []
 
     def draw(self):
+        if self.pikmin_carrying == 0:
+            self.color = TURQUOISE
+        elif self.pikmin_carrying >= self.pikmin_needed:
+            self.color = WHITE
+        else:
+            self.color = BLUE
+
         pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
-        # Draw the number of Pikmin needed on top of the object
         font = pygame.font.Font(None, 24)
-        text = font.render(str(self.pikmin_needed), True, WHITE)
-        text_rect = text.get_rect(center=(self.x, self.y - self.radius - 10))
+        text = font.render(str(self.pikmin_needed - self.pikmin_carrying), True, WHITE)
+        text_rect = text.get_rect(center=(self.x, self.y))
         screen.blit(text, text_rect)
+        
+    def hold(self):
+        if self.delivered or not self.pikmin_carrying:
+            return
+
+        if self.has_enough():
+            dx = self.onion.x - self.x
+            dy = self.onion.y - self.y
+            dist = math.sqrt(dx**2 + dy**2)
+            if dist > 5:
+                move_x = int(dx / dist * PIK_MOVE_OBJ_SPEED)
+                move_y = int(dy / dist * PIK_MOVE_OBJ_SPEED)
+                self.x += move_x
+                self.y += move_y
+                # Move all Pikmin carrying this object
+                for pikmin in self.carrying_pikmin:
+                    pikmin.x += move_x
+                    pikmin.y += move_y
+            else:
+                self.delivered = True
+                for pikmin in self.carrying_pikmin:
+                    pikmin.color = PINK
+                    pikmin.heldObj = None
+                    pikmin.following = False
+                self.pikmin_spawner.spawn_pikmin(self.pikmin_needed)  # Spawn Pikmin
+
+    def has_enough(self):
+        return self.pikmin_needed <= self.pikmin_carrying
 
     def can_be_carried_by(self, pikmin):
         return not self.delivered and self.pikmin_carrying < self.pikmin_needed
 
-    def add_pikmin(self):
+    def add_pikmin(self, pikmin):
         self.pikmin_carrying += 1
+        self.carrying_pikmin.append(pikmin)
 
-    def remove_pikmin(self):
+    def remove_pikmin(self, pikmin):
         self.pikmin_carrying -= 1
+        self.carrying_pikmin.remove(pikmin)
 
 def is_overlapping(pikmin1, pikmin2):
     distance = math.sqrt((pikmin1.x - pikmin2.x) ** 2 + (pikmin1.y - pikmin2.y) ** 2)
     return distance < (pikmin1.radius + pikmin2.radius - MIN_OVERLAP_DISTANCE)
 
 # Game variables
-captain = Captain()
-pikmin_list = [Pikmin(random.randint(50, WIDTH - 50), random.randint(50, HEIGHT - 50)) for _ in range(5)]
+# Game variables
+pikmin_list = []
 onion = Onion()
-objects = [Object() for _ in range(10)]
+captain = Captain()
+pikmin_spawner = PikminSpawner(onion, pikmin_list)
+pikmin_spawner.spawn_pikmin(5)  # Spawn initial Pikmin
+objects = [Object(onion, pikmin_spawner) for _ in range(10)]
 throwing_cursor = False
+
 
 # Main game loop
 running = True
@@ -256,14 +319,14 @@ while running:
         pygame.draw.circle(screen, BLACK, (recall_x, recall_y), 100, 1)
         for pikmin in pikmin_list:
             if math.sqrt((pikmin.x - recall_x) ** 2 + (pikmin.y - recall_y) ** 2) < 100:
-                pikmin.following = True
+                pikmin.drop()
+                pikmin.following = True  # Set to follow the captain again
+                pikmin.target = None  # Clear any target they might have
 
     captain.draw()
     
     for pikmin in pikmin_list:
-        if pikmin.heldObj:
-            pikmin.hold(pikmin.heldObj)
-        elif pikmin.throwing:
+        if pikmin.throwing:
             pikmin.move_to_target()
         else:
             nearest_obj = None
@@ -275,18 +338,19 @@ while running:
                         nearest_dist = dist
                         nearest_obj = obj
             if nearest_obj:
-                nearest_obj.add_pikmin()
-                pikmin.heldObj = nearest_obj
-                pikmin.following = False
-            pikmin.follow(captain)
+                pikmin.hold(nearest_obj)  # Use the hold method to update the object's state
+        pikmin.follow(captain)
         pikmin.draw()
+        
+    # Update objects and handle their destruction
+    for obj in objects[:]:
+        obj.hold()
+        obj.draw()
+        if obj.delivered:
+            objects.remove(obj)  # Remove the object from the game
 
     onion.draw()
     
-    for obj in objects:
-        if not obj.delivered:
-            obj.draw()
-
     # Prevent Pikmin from overlapping completely
     for i, pikmin1 in enumerate(pikmin_list):
         for pikmin2 in pikmin_list[i + 1:]:
